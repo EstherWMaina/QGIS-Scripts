@@ -1,0 +1,49 @@
+from qgis.core import QgsProject, QgsRasterLayer, QgsMultiBandColorRenderer, QgsContrastEnhancement, QgsRasterMinMaxOrigin
+
+# Define the desired band indices for red, green, and blue
+RED_BAND_INDEX = 6  # Adjust these indices as needed
+GREEN_BAND_INDEX = 4
+BLUE_BAND_INDEX = 2
+
+# Define the percentile range for contrast enhancement
+MIN_PERCENTILE = 2.0  # Lower cumulative count cut percentile
+MAX_PERCENTILE = 98.0  # Upper cumulative count cut percentile
+
+# Iterate over all layers in the QGIS project
+for layer in QgsProject.instance().mapLayers().values():
+    # Check if the layer is a raster layer
+    if isinstance(layer, QgsRasterLayer):
+        print(f"Processing layer: {layer.name()}")
+
+        try:
+            # Set a multiband color renderer if not already set
+            if not isinstance(layer.renderer(), QgsMultiBandColorRenderer):
+                renderer = QgsMultiBandColorRenderer(layer.dataProvider(), RED_BAND_INDEX, GREEN_BAND_INDEX, BLUE_BAND_INDEX)
+                layer.setRenderer(renderer)
+            else:
+                renderer = layer.renderer()
+                renderer.setRedBand(RED_BAND_INDEX)
+                renderer.setGreenBand(GREEN_BAND_INDEX)
+                renderer.setBlueBand(BLUE_BAND_INDEX)
+
+            # Apply percentile-based cumulative cut contrast enhancement for each band
+            for band in [RED_BAND_INDEX, GREEN_BAND_INDEX, BLUE_BAND_INDEX]:
+                contrast_enhancement = QgsContrastEnhancement(layer.dataProvider().dataType(band))
+                contrast_enhancement.setContrastEnhancementAlgorithm(QgsContrastEnhancement.StretchToMinimumMaximum)
+
+                # Set cumulative count cut statistics for the band
+                layer.setContrastEnhancement(contrast_enhancement)
+                layer.setCumulativeCutParameters(MIN_PERCENTILE, MAX_PERCENTILE)
+                layer.setContrastEnhancement(contrast_enhancement)
+
+                # Assign contrast enhancement to each band's renderer
+                renderer.setContrastEnhancement(band - 1, contrast_enhancement)  # band indices are 0-based in renderer
+
+            # Refresh the layer to apply changes
+            layer.triggerRepaint()
+            print(f"Applied RGB bands and cumulative cut contrast enhancement to layer: {layer.name()}")
+       
+        except Exception as e:
+            print(f"Error processing layer {layer.name()}: {e}")
+
+print("All layers processed.")
